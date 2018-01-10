@@ -3,6 +3,7 @@ const { Log } = require('lib/log.js');
 const { sprintf } = require('sprintf-js');
 const BaseItem = require('lib/models/BaseItem.js');
 const Setting = require('lib/models/Setting.js');
+const Resource = require('lib/models/Resource.js');
 const { shim } = require('lib/shim.js');
 const { time } = require('lib/time-utils.js');
 const { _ } = require('lib/locale.js');
@@ -38,6 +39,29 @@ class Note extends BaseItem {
 		fieldNames.push('type_');
 		lodash.pull(fieldNames, 'title', 'body');
 		return super.serialize(note, 'note', fieldNames);
+	}
+
+	static async getAllResources(id){
+		const note=await this.load(id);
+		const linkRegex = /\[([^\[]+)\]\(([^\)]+)\)/g;
+		let match;
+		let resources=[];
+		while ((match = linkRegex.exec(note.body)) !== null) {
+			if (match.index === linkRegex.lastIndex) {
+				linkRegex.lastIndex++;
+			}
+			if(match.length===3){
+				let link=match[2];
+				let resourceId=link.split('/').slice(-1)[0];
+				let resource=await Resource.load(resourceId);
+				if(resource){
+					resources.push(resource);
+				}
+
+			}
+
+		}
+		return resources;
 	}
 
 	static minimalSerializeForDisplay(note) {
@@ -407,22 +431,24 @@ class Note extends BaseItem {
 
 	static async delete(id, options = null) {
 		let r = await super.delete(id, options);
-
 		this.dispatch({
 			type: 'NOTE_DELETE',
 			id: id,
 		});
 	}
 
-	static batchDelete(ids, options = null) {
-		const result = super.batchDelete(ids, options);
+	static async  batchDelete(ids, options = null) {
 		for (let i = 0; i < ids.length; i++) {
+			let resources=await this.getAllResources(ids[i]);
+			for(let j=0;j<resources.length;j++){
+				Resource.delete(resources[j].id);
+			}
 			this.dispatch({
 				type: 'NOTE_DELETE',
 				id: ids[i],
 			});
 		}
-		return result;
+		return super.batchDelete(ids, options);
 	}
 
 	static dueNotes() {

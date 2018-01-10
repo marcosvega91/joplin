@@ -136,6 +136,16 @@ class Resource extends BaseItem {
 		return url.substr(2);
 	}
 
+	static async batchDelete(ids, options = null) {
+
+		for(let i=0;i<ids.length;i++){
+			let resource=await this.load(ids[i]);
+			this.fsDriver().unlink(this.fullPath(resource,false));
+
+		}
+		return super.batchDelete(ids,options);
+	}
+
 }
 
 Resource.IMAGE_MAX_DIMENSION = 1920;
